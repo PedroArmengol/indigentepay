@@ -17,6 +17,7 @@ export default function Inicio() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [storage, setStorage] = useState("");
   const [funding, setFunding] = useState("");
+  const [codiQr, setCodiQr] = useState<string | undefined>();
   useEffect(() => {
     api<{ stats: Stats; storage: string; funding: string }>("/api/stats")
       .then((r) => {
@@ -25,6 +26,7 @@ export default function Inicio() {
         setFunding(r.funding);
       })
       .catch(() => {});
+    api<{ person: { codiQr?: string } }>("/api/people/LUPITA").then((r) => setCodiQr(r.person.codiQr)).catch(() => {});
   }, []);
 
   return (
@@ -39,10 +41,12 @@ export default function Inicio() {
 
       <section className="mt-8 flex justify-center">
         <div className="-rotate-2">
-          <Gafete persona={{ code: "LUPITA", alias: "Doña Lupita", zone: "Metro Insurgentes, salida Génova" }} origin={origin} qr={190} />
+          <Gafete persona={{ code: "LUPITA", alias: "Doña Lupita", zone: "Metro Insurgentes, salida Génova", codiQr }} origin={origin} qr={190} />
         </div>
       </section>
-      <p className="nota mt-4 text-center">Este gafete funciona: escanéalo con tu celular.</p>
+      <p className="nota mt-4 text-center">
+        {codiQr ? "Este gafete funciona: escanéalo con la app de tu banco y pon el monto." : "Este gafete funciona: escanéalo con tu celular."}
+      </p>
 
       <section className="mt-8 grid gap-3">
         <Link href="/wallet" className="btn btn-rosa">

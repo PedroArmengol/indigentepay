@@ -41,7 +41,7 @@ export default function VerGafete() {
         <div className="no-imprimir">
           <h1 className="text-4xl">{nuevo ? "Gafete listo" : "Gafete"}</h1>
           <p className="mt-3 leading-snug">
-            Imprímelo y enmícalo. Quien lo escanee con la cámara de su celular puede darle dinero al instante.
+            Imprímelo y enmícalo. Quien lo escanee puede darle dinero al instante.
           </p>
         </div>
         {alta?.payout === "n2bis" ? (

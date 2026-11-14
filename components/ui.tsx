@@ -53,7 +53,7 @@ export function QR({ value, size = 220 }: { value: string; size?: number }) {
   );
 }
 
-export type Persona = { code: string; alias: string; zone?: string; need?: string; story?: string; payout?: "clabe" | "n2bis" | null };
+export type Persona = { code: string; alias: string; zone?: string; need?: string; story?: string; payout?: "clabe" | "n2bis" | null; codiQr?: string };
 
 /** El gafete: la cuenta de la persona, impresa. */
 export function Gafete({ persona, origin, qr = 200 }: { persona: Persona; origin: string; qr?: number }) {
@@ -67,12 +67,29 @@ export function Gafete({ persona, origin, qr = 200 }: { persona: Persona; origin
         <p className="text-[1.75rem] font-extrabold leading-none tracking-tight">{persona.alias}</p>
         {persona.zone ? <p className="mt-1 text-sm leading-snug">{persona.zone}</p> : null}
         <div className="my-3 inline-block rounded-xl border-2 border-tinta p-1 align-top">
-          {origin ? <QR value={`${origin}/p/${persona.code}`} size={qr} /> : <div style={{ width: qr, height: qr }} />}
+          {persona.codiQr ? (
+            <QR value={persona.codiQr} size={qr} />
+          ) : origin ? (
+            <QR value={`${origin}/p/${persona.code}`} size={qr} />
+          ) : (
+            <div style={{ width: qr, height: qr }} />
+          )}
         </div>
-        <p className="font-bold leading-tight">Escanea con tu cámara para ayudarme</p>
-        <p className="mt-1 text-xs text-humo">
-          Sin efectivo, con IndigentePay. Gafete {persona.code}
-        </p>
+        {persona.codiQr ? (
+          <>
+            <p className="font-bold leading-tight">Escanea con la app de tu banco (CoDi) para ayudarme</p>
+            <p className="mt-1 break-words text-xs text-humo">
+              Tú pones el monto. Mi historia: {origin.replace(/^https?:\/\//, "")}/p/{persona.code}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-bold leading-tight">Escanea con tu cámara para ayudarme</p>
+            <p className="mt-1 text-xs text-humo">
+              Sin efectivo, con IndigentePay. Gafete {persona.code}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

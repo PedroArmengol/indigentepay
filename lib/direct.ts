@@ -1,6 +1,6 @@
 import { budgetSummary, getStore, newId, now } from "./core";
-import { findPayment } from "./pey";
-import type { Fund } from "./types";
+import { createStaticQr, findPayment, listTransactions, paidCents, peyEnabled } from "./pey";
+import type { Fund, RecipientRecord } from "./types";
 
 /**
  * Pago directo a un receptor: el cobro CoDi lleva el código de su gafete, así que
@@ -47,4 +47,64 @@ export async function directStatus(id: string) {
     id: fund.id, amount: fund.amount, status: fund.status, code: fund.target, alias: person?.alias,
     deposited: fund.status === "PAID" && person?.payout === "clabe", summary,
   };
+}
+
+// ------------------------------------------------- QR fijo del gafete
+
+/** Crea (una vez) el QR CoDi fijo de la persona. Si Pey falla, el gafete sigue funcionando con su liga. */
+export async function ensureStaticQr(person: RecipientRecord): Promise<string | undefined> {
+  if (person.codiQr || !peyEnabled()) return person.codiQr;
+  try {
+    const qr = await createStaticQr(person.code, person.alias, String(now() % 10_000_000));
+    if (!qr.qrString) return undefined;
+    await (await getStore()).setRecipientQr(person.code, qr.id, qr.qrString);
+    return qr.qrString;
+  } catch (err) {
+    console.error("pey", err);
+    return undefined;
+  }
+}
+
+/** Abona al gafete un pago hecho a su QR fijo (una sola vez por transacción de Pey). */
+export async function creditStatic(code: string, cents: number, payId: string) {
+  const store = await getStore();
+  const person = await store.getRecipient(code);
+  if (!person || cents <= 0) return "missing" as const;
+  const result = await store.creditRecipient(code, cents, {
+    id: newId("t"), ts: now(), type: "donation", amount: cents, code, alias: person.alias,
+    donorName: "alguien, con CoDi", concept: "Pago al QR del gafete",
+  }, payId);
+  if (result === "ok" && person.payout === "clabe" && person.clabe) {
+    await store.redeem(code, cents, {
+      id: newId("t"), ts: now(), type: "payout", amount: cents, code, alias: person.alias,
+      merchant: `Depósito a ${person.bank ?? "su banco"} ••••${person.clabe.slice(-4)}`,
+    }, "payout");
+  }
+  return result;
+}
+
+/**
+ * Revisa en Pey los pagos recibidos en los QR fijos y los abona a cada gafete.
+ * Se llama al consultar saldos y estadísticas; un candado evita hacerlo más de una vez cada pocos segundos.
+ */
+export async function syncStaticPayments(): Promise<number> {
+  if (!peyEnabled()) return 0;
+  const store = await getStore();
+  try {
+    if (!(await store.lock("sync", 3))) return 0;
+    const map = await store.qrMap();
+    if (Object.keys(map).length === 0) return 0;
+    const [txs, seen] = await Promise.all([listTransactions(), store.paidTxIds()]);
+    let credited = 0;
+    for (const tx of txs.reverse()) {
+      const id = String(tx.id ?? "");
+      const code = map[String(tx.payableId ?? "")];
+      if (!id || !code || tx.status !== "PAID" || seen.has(id)) continue;
+      if ((await creditStatic(code, paidCents(tx), id)) === "ok") credited += 1;
+    }
+    return credited;
+  } catch (err) {
+    console.error("pey", err);
+    return 0;
+  }
 }

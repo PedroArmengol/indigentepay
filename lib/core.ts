@@ -105,7 +105,7 @@ export function clean(value: unknown, max: number): string {
 export function publicRecipient(r: RecipientRecord): Omit<Recipient, "balance" | "redeemed" | "paidOut"> {
   return {
     code: r.code, alias: r.alias, zone: r.zone, need: r.need, story: r.story,
-    received: r.received, donations: r.donations, createdAt: r.createdAt, payout: r.payout,
+    received: r.received, donations: r.donations, createdAt: r.createdAt, payout: r.payout, codiQr: r.codiQr,
   };
 }
 

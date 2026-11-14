@@ -70,6 +70,20 @@ if ARGV[2] == '1' then redis.call('LPUSH', KEYS[5], ARGV[1]) end
 return 'ok'
 `;
 
+const CREDIT_RECIPIENT = `
+if redis.call('EXISTS', KEYS[1]) == 0 then return 'missing' end
+if redis.call('SADD', KEYS[4], ARGV[3]) == 0 then return 'already' end
+local amt = tonumber(ARGV[1])
+redis.call('HINCRBY', KEYS[1], 'balance', amt)
+redis.call('HINCRBY', KEYS[1], 'received', amt)
+redis.call('HINCRBY', KEYS[1], 'donations', 1)
+redis.call('LPUSH', KEYS[2], ARGV[2])
+redis.call('HINCRBY', KEYS[3], 'donated', amt)
+redis.call('HINCRBY', KEYS[3], 'donations', 1)
+redis.call('HINCRBY', KEYS[3], 'fundedReal', amt)
+return 'ok'
+`;
+
 const CREATE_RECIPIENT = `
 if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
 redis.call('HSET', KEYS[1], unpack(ARGV))
@@ -193,7 +207,7 @@ export class RedisStore implements Store {
       balance: Number(h.balance), received: Number(h.received), donations: Number(h.donations),
       redeemed: Number(h.redeemed), paidOut: Number(h.paidOut ?? 0), createdAt: Number(h.createdAt), pinHash: h.pinHash,
       payout: h.payout as RecipientRecord["payout"], clabe: h.clabe, bank: h.bank, legalName: h.legalName,
-      curp: h.curp, account: h.account,
+      curp: h.curp, account: h.account, codiQr: h.codiQr, codiQrId: h.codiQrId,
     };
   }
   async recipientTxs(code: string, limit = 100) {
@@ -214,6 +228,27 @@ export class RedisStore implements Store {
       amount, JSON.stringify(tx), kind === "payout" ? "paidOut" : "redeemed",
     );
     return move(result);
+  }
+
+  async setRecipientQr(code: string, qrId: string, qrString: string) {
+    await this.cmd("HSET", `${P}rec:${code}`, "codiQrId", qrId, "codiQr", qrString);
+    await this.cmd("HSET", `${P}qrmap`, qrId, code);
+  }
+  async qrMap() {
+    return toObject(await this.cmd("HGETALL", `${P}qrmap`)) ?? {};
+  }
+  async paidTxIds() {
+    const ids = await this.cmd<string[]>("SMEMBERS", `${P}paidtx`);
+    return new Set(Array.isArray(ids) ? ids.map(String) : []);
+  }
+  async creditRecipient(code: string, amount: number, tx: Tx, payId: string) {
+    return this.cmd<"ok" | "already" | "missing">(
+      "EVAL", CREDIT_RECIPIENT, 4, `${P}rec:${code}`, `${P}tx:rec:${code}`, `${P}stats`, `${P}paidtx`,
+      amount, JSON.stringify(tx), payId,
+    );
+  }
+  async lock(name: string, seconds: number) {
+    return (await this.cmd<string | null>("SET", `${P}lock:${name}`, "1", "NX", "EX", seconds)) === "OK";
   }
 
   async pinFail(code: string) {

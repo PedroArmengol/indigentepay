@@ -10,6 +10,9 @@ export class MemoryStore implements Store {
   private donorTx = new Map<string, Tx[]>();
   private recTx = new Map<string, Tx[]>();
   private fails = new Map<string, { n: number; until: number }>();
+  private qrs = new Map<string, string>();
+  private paid = new Set<string>();
+  private locks = new Map<string, number>();
   private totals = { donated: 0, donations: 0, redeemed: 0, paidOut: 0, fundedReal: 0 };
 
   async createDonor(d: Donor) {
@@ -109,6 +112,40 @@ export class MemoryStore implements Store {
     this.totals[field] += amount;
     this.push(this.recTx, code, tx);
     return { ok: true, balance: r.balance };
+  }
+
+  async setRecipientQr(code: string, qrId: string, qrString: string) {
+    const r = this.recipients.get(code);
+    if (!r) return;
+    r.codiQrId = qrId;
+    r.codiQr = qrString;
+    this.qrs.set(qrId, code);
+  }
+  async qrMap() {
+    return Object.fromEntries(this.qrs);
+  }
+  async paidTxIds() {
+    return new Set(this.paid);
+  }
+  async creditRecipient(code: string, amount: number, tx: Tx, payId: string) {
+    const r = this.recipients.get(code);
+    if (!r) return "missing" as const;
+    if (this.paid.has(payId)) return "already" as const;
+    this.paid.add(payId);
+    r.balance += amount;
+    r.received += amount;
+    r.donations += 1;
+    this.totals.donated += amount;
+    this.totals.donations += 1;
+    this.totals.fundedReal += amount;
+    this.push(this.recTx, code, tx);
+    return "ok" as const;
+  }
+  async lock(name: string, seconds: number) {
+    const now = Date.now();
+    if ((this.locks.get(name) ?? 0) > now) return false;
+    this.locks.set(name, now + seconds * 1000);
+    return true;
   }
 
   async pinFail(code: string) {

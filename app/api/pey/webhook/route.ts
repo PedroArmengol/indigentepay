@@ -1,7 +1,7 @@
 import { fail, ok } from "@/lib/api";
 import { getStore, newId, now } from "@/lib/core";
-import { settleDirect } from "@/lib/direct";
-import { getTransaction, paidInFull, verifyWebhook } from "@/lib/pey";
+import { creditStatic, settleDirect } from "@/lib/direct";
+import { getTransaction, paidCents, paidInFull, verifyWebhook } from "@/lib/pey";
 
 const EVENTS = new Set(["codi.qr.payment_received", "codi.pn.payment_received"]);
 
@@ -13,6 +13,15 @@ export async function POST(req: Request) {
   if (!EVENTS.has(String(event.type))) return ok({ ignored: true });
 
   const store = await getStore();
+
+  // Pago al QR fijo de un gafete: se abona a esa persona.
+  const staticCode = event.codiQrId ? (await store.qrMap())[String(event.codiQrId)] : undefined;
+  if (staticCode) {
+    const paid = await getTransaction(String(event.transactionId));
+    if (paid.status !== "PAID") return ok({ ignored: "pago no confirmado" });
+    return ok({ result: await creditStatic(staticCode, paidCents(paid), String(event.transactionId)) });
+  }
+
   const meta = (event.metadata ?? {}) as { externalMetadata?: { orderId?: string } };
   const fundId = meta.externalMetadata?.orderId;
   const fund =

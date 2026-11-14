@@ -63,6 +63,29 @@ export async function createCodiQr(amountCents: number, fundId: string, numRef: 
   };
 }
 
+/**
+ * QR CoDi fijo de una persona: sin monto (lo teclea quien paga) y sin vencimiento.
+ * Es el que se imprime en su gafete; cada pago llega referenciado a ella.
+ */
+export async function createStaticQr(recipient: string, alias: string, numRef: string) {
+  const body: Json = { amount: 0, concept: `Donativo ${alias}`.slice(0, 40), numRef, metadata: { recipient } };
+  if (process.env.PEY_BANK_ACCOUNT_ID) body.bankAccountId = process.env.PEY_BANK_ACCOUNT_ID;
+  const res = await request("POST", "/codi/qr", body);
+  return { id: String(res.id), qrString: String(res.qrString ?? "") };
+}
+
+/** Últimas transacciones de la llave (hasta 80, de la más nueva a la más vieja). */
+export async function listTransactions(): Promise<Json[]> {
+  const list = await request("GET", "/transaction/api-key");
+  return Array.isArray(list.items) ? (list.items as Json[]) : [];
+}
+
+/** Monto pagado de una transacción, en centavos. */
+export function paidCents(tx: Json): number {
+  const breakdown = (tx.amountBreakdown ?? {}) as { base?: number };
+  return Math.round(Number(breakdown.base ?? tx.amount ?? 0) * 100);
+}
+
 /** Manda la solicitud de cobro a la app del banco ligada a ese celular. */
 export async function createCodiPush(amountCents: number, fundId: string, numRef: string, phone10: string, destino?: Destino) {
   const res = await request("POST", "/codi/pn", { ...common(amountCents, fundId, numRef, destino), phoneNumber: phone10 });

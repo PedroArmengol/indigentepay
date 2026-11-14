@@ -82,4 +82,23 @@ assert.deepEqual([r.data.pay.status, r.data.pay.deposited, r.data.pay.summary], 
 const carmen1 = await saldoDe("CARMEN");
 assert.deepEqual([carmen1.balance, carmen1.paidOut - carmen0.paidOut], [0, 3000]);
 assert.equal((await call("/api/stats")).data.stats.fundedReal - antes, 2100 + 1500 + 3000);
-console.log("OK: fondeo CoDi (QR, celular y webhook) y pago directo referenciado al receptor");
+// ---- QR fijo del gafete: se paga directo desde el banco, sin pasar por la app
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+r = await call("/api/people/MARCO7");
+const fijo = JSON.parse(r.data.person.codiQr).IDC;
+assert.ok(fijo, "el gafete trae su QR CoDi fijo");
+assert.equal(JSON.parse((await call("/api/people/MARCO7")).data.person.codiQr).IDC, fijo, "el QR fijo se crea una sola vez");
+const marco0 = await saldoDe("MARCO7");
+await mock(`/_pay/${fijo}`, { amount: 7 });
+await mock(`/_pay/${fijo}`, { amount: 3.5 });
+await espera(3200);
+let marco1 = await saldoDe("MARCO7");
+assert.equal(marco1.balance - marco0.balance, 1050, "dos pagos al mismo QR, cada uno abonado una vez");
+await espera(3200);
+marco1 = await saldoDe("MARCO7");
+assert.equal(marco1.balance - marco0.balance, 1050, "volver a consultar no duplica");
+await mock(`/_pay/${fijo}`, { amount: 2 });
+await espera(3200);
+assert.equal((await call("/api/stats")).data.stats.fundedReal - antes, 2100 + 1500 + 3000 + 1050 + 200);
+assert.equal((await saldoDe("MARCO7")).balance - marco0.balance, 1250);
+console.log("OK: fondeo CoDi, pago directo y QR fijo del gafete");

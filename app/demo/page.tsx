@@ -14,7 +14,7 @@ type Info = {
 
 const PASOS = [
   { t: "Abre tu wallet y fondéala", d: "Pon tu nombre, elige tu presupuesto del mes y fondea: con CoDi real si está activado, o con un pago simulado.", href: "/wallet", cta: "Abrir wallet" },
-  { t: "Escanea un gafete y da", d: "Usa la cámara de tu celular sobre cualquiera de los gafetes de abajo.", href: "/escanear", cta: "Escanear" },
+  { t: "Escanea un gafete y da", d: "Con CoDi activado, escanea un gafete de abajo con la app de tu banco y pon el monto. Sin CoDi, usa la cámara del celular.", href: "/escanear", cta: "Escanear" },
   { t: "Cobra como comercio aliado", d: "Escribe el código del gafete, un monto y el NIP de demostración.", href: "/canjear", cta: "Cobrar con gafete" },
   { t: "Registra a alguien nuevo", d: "Prueba las dos opciones: con cuenta de banco (CLABE) o sin cuenta, abriéndole una cuenta básica con su CURP calculada.", href: "/registrar", cta: "Registrar" },
 ];
@@ -22,8 +22,18 @@ const PASOS = [
 export default function Demo() {
   const origin = useOrigin();
   const [info, setInfo] = useState<Info | null>(null);
+  const [qrs, setQrs] = useState<Record<string, string>>({});
   useEffect(() => {
-    api<Info>("/api/stats").then(setInfo).catch(() => {});
+    api<Info>("/api/stats")
+      .then((r) => {
+        setInfo(r);
+        for (const p of r.demo.people) {
+          api<{ person: { codiQr?: string } }>(`/api/people/${p.code}`)
+            .then((x) => x.person.codiQr && setQrs((q) => ({ ...q, [p.code]: x.person.codiQr! })))
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
   }, []);
 
   return (
@@ -55,7 +65,7 @@ export default function Demo() {
       <div className="mt-5 grid justify-items-center gap-8">
         {(info?.demo.people ?? []).map((p) => (
           <div key={p.code} className="grid justify-items-center gap-3">
-            <Gafete persona={p} origin={origin} qr={200} />
+            <Gafete persona={{ ...p, codiQr: qrs[p.code] }} origin={origin} qr={200} />
             <p className="text-sm font-bold">{p.payout === "clabe" ? "Recibe en su cuenta de banco" : "Sin cuenta de banco: recibe en su gafete"}</p>
             <div className="flex gap-2">
               <Link href={`/p/${p.code}`} className="btn btn-chico">Abrir sin escanear</Link>

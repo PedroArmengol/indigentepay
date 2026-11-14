@@ -22,6 +22,8 @@ export type Recipient = {
   createdAt: number;
   /** Cómo recibe su dinero: en su propia cuenta (CLABE) o en la cuenta básica que se le abre. */
   payout?: "clabe" | "n2bis";
+  /** Contenido del QR CoDi fijo de la persona (sin monto ni vencimiento): es el que va impreso en su gafete. */
+  codiQr?: string;
 };
 
 /** Datos privados: nunca salen en el perfil público. */
@@ -32,6 +34,7 @@ export type RecipientRecord = Recipient & {
   legalName?: string;
   curp?: string;
   account?: string; // número de la cuenta básica (simulada)
+  codiQrId?: string; // id del QR fijo en Pey
 };
 
 export type TxType = "fund" | "donation" | "redeem" | "payout";
@@ -100,6 +103,17 @@ export interface Store {
   donate(donorId: string, code: string, amount: number, tx: Tx): Promise<MoveResult>;
   /** Descuenta saldo del gafete de forma atómica: compra en comercio aliado o depósito a su banco. */
   redeem(code: string, amount: number, tx: Tx, kind?: "redeem" | "payout"): Promise<MoveResult>;
+
+  /** Guarda el QR CoDi fijo de una persona y lo indexa por su id en Pey. */
+  setRecipientQr(code: string, qrId: string, qrString: string): Promise<void>;
+  /** Mapa id de QR fijo → código de gafete. */
+  qrMap(): Promise<Record<string, string>>;
+  /** Ids de transacciones de Pey ya abonadas. */
+  paidTxIds(): Promise<Set<string>>;
+  /** Abona a un gafete un pago recibido en su QR fijo. `payId` evita abonar dos veces la misma transacción. */
+  creditRecipient(code: string, amount: number, tx: Tx, payId: string): Promise<"ok" | "already" | "missing">;
+  /** Candado breve para no consultar a Pey en cada petición. Regresa true si se obtuvo. */
+  lock(name: string, seconds: number): Promise<boolean>;
 
   /** Cuenta un NIP incorrecto; regresa los intentos en la ventana de bloqueo. */
   pinFail(code: string): Promise<number>;

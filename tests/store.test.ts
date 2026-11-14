@@ -94,6 +94,26 @@ function suite(name: string, make: () => Store) {
       assert.equal((await s.getFund("f_5"))!.target, "FFF666");
     });
 
+    it("abona pagos al QR fijo del gafete sin duplicar", async () => {
+      const s = make();
+      await s.createRecipient({ code: "GGG777", alias: "Mikel", zone: "", need: "", story: "", balance: 0, received: 0, donations: 0, redeemed: 0, paidOut: 0, createdAt: 1, pinHash: "h" });
+      await s.setRecipientQr("GGG777", "QRFIJO7", '{"TYP":1,"IDC":"QRFIJO7"}');
+      assert.equal((await s.qrMap()).QRFIJO7, "GGG777");
+      const r0 = (await s.getRecipient("GGG777"))!;
+      assert.deepEqual([r0.codiQrId, r0.codiQr], ["QRFIJO7", '{"TYP":1,"IDC":"QRFIJO7"}']);
+      assert.equal(await s.creditRecipient("GGG777", 7_00, tx("donation", 7_00), "PEYTX-A"), "ok");
+      assert.equal(await s.creditRecipient("GGG777", 7_00, tx("donation", 7_00), "PEYTX-A"), "already");
+      assert.equal(await s.creditRecipient("GGG777", 3_00, tx("donation", 3_00), "PEYTX-B"), "ok");
+      assert.equal(await s.creditRecipient("NOPE", 3_00, tx("donation", 3_00), "PEYTX-C"), "missing");
+      const r = (await s.getRecipient("GGG777"))!;
+      assert.deepEqual([r.balance, r.received, r.donations], [10_00, 10_00, 2]);
+      const seen = await s.paidTxIds();
+      assert.deepEqual([seen.has("PEYTX-A"), seen.has("PEYTX-B"), seen.has("PEYTX-C")], [true, true, false]);
+      assert.equal(await s.lock("prueba" + Math.random(), 2), true);
+      const nombre = "candado" + Math.random();
+      assert.deepEqual([await s.lock(nombre, 2), await s.lock(nombre, 2)], [true, false]);
+    });
+
     it("cuenta intentos de NIP y los reinicia", async () => {
       const s = make();
       assert.equal(await s.pinFails("CCC333"), 0);

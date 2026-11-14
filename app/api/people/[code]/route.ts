@@ -1,12 +1,15 @@
 import { fail, ok, readBody } from "@/lib/api";
 import { LIMITS, getStore, hashPin, normalizeCode, privateRecipient, publicRecipient } from "@/lib/core";
+import { ensureStaticQr, syncStaticPayments } from "@/lib/direct";
 
 // Perfil público: lo que ve quien escanea el gafete (sin saldo)
 export async function GET(_req: Request, ctx: RouteContext<"/api/people/[code]">) {
   const { code } = await ctx.params;
   const person = await (await getStore()).getRecipient(normalizeCode(code));
   if (!person) return fail(404, "Este gafete no existe.");
-  return ok({ person: publicRecipient(person) });
+  // El QR CoDi fijo de la persona es el que va impreso en su gafete.
+  const codiQr = await ensureStaticQr(person);
+  return ok({ person: { ...publicRecipient(person), codiQr } });
 }
 
 // Saldo y movimientos: solo con el NIP de la persona
@@ -23,6 +26,9 @@ export async function POST(req: Request, ctx: RouteContext<"/api/people/[code]">
     return fail(403, `NIP incorrecto. Quedan ${Math.max(0, LIMITS.pinTries - tries)} intentos.`);
   }
   await store.pinReset(code);
+  // Antes de mostrar el saldo se abonan los pagos que hayan llegado a su QR.
+  await syncStaticPayments();
+  const fresh = (await store.getRecipient(code)) ?? person;
   const txs = await store.recipientTxs(code, 50);
-  return ok({ person: privateRecipient(person), txs });
+  return ok({ person: privateRecipient(fresh), txs });
 }
