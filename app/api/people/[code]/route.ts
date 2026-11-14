@@ -1,5 +1,5 @@
 import { fail, ok, readBody } from "@/lib/api";
-import { LIMITS, getStore, hashPin, normalizeCode, publicRecipient } from "@/lib/core";
+import { LIMITS, getStore, hashPin, normalizeCode, privateRecipient, publicRecipient } from "@/lib/core";
 
 // Perfil público: lo que ve quien escanea el gafete (sin saldo)
 export async function GET(_req: Request, ctx: RouteContext<"/api/people/[code]">) {
@@ -24,5 +24,5 @@ export async function POST(req: Request, ctx: RouteContext<"/api/people/[code]">
   }
   await store.pinReset(code);
   const txs = await store.recipientTxs(code, 50);
-  return ok({ person: { ...publicRecipient(person), balance: person.balance, redeemed: person.redeemed }, txs });
+  return ok({ person: privateRecipient(person), txs });
 }

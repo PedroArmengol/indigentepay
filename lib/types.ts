@@ -17,13 +17,24 @@ export type Recipient = {
   balance: number;
   received: number;
   donations: number;
-  redeemed: number;
+  redeemed: number; // gastado en comercios aliados
+  paidOut: number; // depositado a su cuenta de banco
   createdAt: number;
+  /** Cómo recibe su dinero: en su propia cuenta (CLABE) o en la cuenta básica que se le abre. */
+  payout?: "clabe" | "n2bis";
 };
 
-export type RecipientRecord = Recipient & { pinHash: string };
+/** Datos privados: nunca salen en el perfil público. */
+export type RecipientRecord = Recipient & {
+  pinHash: string;
+  clabe?: string;
+  bank?: string;
+  legalName?: string;
+  curp?: string;
+  account?: string; // número de la cuenta básica (simulada)
+};
 
-export type TxType = "fund" | "donation" | "redeem";
+export type TxType = "fund" | "donation" | "redeem" | "payout";
 
 export type Tx = {
   id: string;
@@ -52,6 +63,7 @@ export type Stats = {
   donated: number;
   donations: number;
   redeemed: number;
+  paidOut: number;
   people: number;
   donors: number;
 };
@@ -79,8 +91,8 @@ export interface Store {
 
   /** Mueve saldo de la wallet al gafete de forma atómica. */
   donate(donorId: string, code: string, amount: number, tx: Tx): Promise<MoveResult>;
-  /** Descuenta saldo del gafete (compra en comercio aliado) de forma atómica. */
-  redeem(code: string, amount: number, tx: Tx): Promise<MoveResult>;
+  /** Descuenta saldo del gafete de forma atómica: compra en comercio aliado o depósito a su banco. */
+  redeem(code: string, amount: number, tx: Tx, kind?: "redeem" | "payout"): Promise<MoveResult>;
 
   /** Cuenta un NIP incorrecto; regresa los intentos en la ventana de bloqueo. */
   pinFail(code: string): Promise<number>;

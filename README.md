@@ -4,7 +4,7 @@
 
 Proyecto del Cursor Hackathon México (CDMX, 14 de noviembre de 2026).
 
-- **App en vivo:** _pega aquí la URL de Vercel_
+- **App en vivo:** https://indigentepay.vercel.app (demo guiada: https://indigentepay.vercel.app/demo)
 - **Video demo:** _pega aquí la liga_
 
 ## El problema
@@ -16,10 +16,15 @@ Cada vez cargamos menos efectivo, y quien vive de la moneda que le dan en la cal
 | Quién | Qué hace | Pantalla |
 |---|---|---|
 | **Donante** | Abre una wallet, la fondea y fija su presupuesto mensual de beneficencia. Escanea un gafete y da. Ve cuánto lleva del mes, a cuántas personas ayudó y su historial. | `/wallet`, `/escanear`, `/p/{código}` |
-| **Persona en situación de calle** | Recibe un gafete impreso con su QR único y elige un NIP. No necesita celular ni cuenta de banco: el gafete es su cuenta. | `/registrar`, `/gafete/{código}`, `/saldo/{código}` |
+| **Persona en situación de calle** | Recibe un gafete impreso con su QR único y elige un NIP. Al registrarla se elige cómo recibe su dinero (ver abajo). | `/registrar`, `/gafete/{código}`, `/saldo/{código}` |
 | **Comercio aliado** | Escanea el gafete, la persona teclea su NIP y se cobra comida o medicinas de su saldo. | `/canjear` |
 
-`/demo` tiene tres gafetes de prueba (NIP `1234`) para recorrer el ciclo completo en dos minutos.
+### Dos formas de recibir
+
+- **Ya tiene cuenta de banco.** Se captura su CLABE (se valida el dígito de control) y cada donativo se le deposita al momento. En la demo el depósito es simulado.
+- **No tiene cuenta de banco.** Se le abre una cuenta Nivel 1 Bis con nombre, apellidos, fecha de nacimiento, sexo y estado de nacimiento; con esos datos se calcula su CURP. El saldo vive en esa cuenta y lo gasta con su gafete y su NIP en comercios aliados. En la demo la cuenta es simulada.
+
+`/demo` tiene cuatro gafetes de prueba (NIP `1234`) para recorrer el ciclo completo en dos minutos.
 
 ## Correrlo
 
@@ -46,6 +51,7 @@ Sin Redis la app funciona, pero los saldos viven en la memoria de cada instancia
 - **Montos en centavos enteros.** Nada de decimales flotantes.
 - **Wallet sin registro.** La llave de la wallet se genera en el servidor y vive en el `localStorage` del celular.
 - **Gafete con NIP.** El NIP se guarda con hash y sal; cinco intentos fallidos bloquean el gafete diez minutos. El perfil público nunca muestra el saldo.
+- **CURP calculada.** `lib/curp.ts` deriva 16 de los 18 caracteres y el dígito verificador. El carácter 17 lo asigna RENAPO para evitar duplicados; se usa el valor más común y la clave se marca como «calculada», por confirmar.
 - **Fondeo.** Simulado por omisión. Con `PEY_API_KEY` genera un QR CoDi real vía [Pey](https://docs.pey.mx) y abona al recibir el webhook firmado (Standard Webhooks), confirmando el pago directo con Pey. Un aviso repetido no abona dos veces.
 
 ```
@@ -53,6 +59,9 @@ app/            páginas y rutas de la API
 components/     gafete, QR, escáner, barra de presupuesto
 lib/core.ts     reglas: límites, presupuesto del mes, códigos, NIP
 lib/store-*.ts  almacén en memoria y en Redis (misma interfaz, mismas pruebas)
+lib/curp.ts     cálculo de la CURP
+lib/cuenta.ts   etiqueta del nivel de cuenta
+lib/clabe.ts    validación de CLABE
 lib/pey.ts      cobro CoDi con Pey
 tests/          pruebas del almacén y flujo de punta a punta
 ```
@@ -60,6 +69,7 @@ tests/          pruebas del almacén y flujo de punta a punta
 ## Qué es demo y qué falta
 
 - El fondeo es **simulado**: no se mueve dinero real. La integración con Pey está escrita pero no se ha probado contra su API en producción.
+- La cuenta Nivel 1 Bis y los depósitos a CLABE son **simulados**. Abrir cuentas reales requiere a un banco, confirmar la CURP con RENAPO y cumplir los requisitos de identificación que la regulación pide para ese nivel de cuenta.
 - Las personas de los gafetes de demostración son ficticias.
 - Para operar con dinero real hace falta: figura regulada para custodiar fondos (institución de fondos de pago electrónico o alianza con una), identificación de donantes y prevención de lavado, liquidación a comercios aliados, y recuperación de gafetes perdidos.
 - El registro debe hacerse con el consentimiento de la persona, idealmente a través de albergues y organizaciones que ya trabajan con ella.

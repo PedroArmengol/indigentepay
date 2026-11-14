@@ -7,7 +7,7 @@ import { CrearWallet } from "@/components/CrearWallet";
 import { ErrorMsg, Montos, Pagina, Presupuesto, Sello, type Persona } from "@/components/ui";
 import { ApiError, api, errorText, pesos, useWallet, type Summary } from "@/lib/client";
 
-type Hecho = { amount: number; balance: number; summary: Summary };
+type Hecho = { amount: number; balance: number; summary: Summary; deposited?: boolean };
 
 export default function Pagar() {
   const { code } = useParams<{ code: string }>();
@@ -32,7 +32,7 @@ export default function Pagar() {
     setError("");
     try {
       const res = await api<Hecho & { tx: { amount: number } }>("/api/donate", { body: { code, amount } });
-      setHecho({ amount: res.tx.amount, balance: res.balance, summary: res.summary });
+      setHecho({ amount: res.tx.amount, balance: res.balance, summary: res.summary, deposited: res.deposited });
     } catch (err) {
       setError(errorText(err));
       if (err instanceof ApiError && err.status === 402) void wallet.reload();
@@ -61,7 +61,9 @@ export default function Pagar() {
           <h1 className="text-center text-4xl">
             Le diste {pesos(hecho.amount)} a {persona.alias}
           </h1>
-          <p className="text-center">Ya puede usarlo con su gafete en un comercio aliado.</p>
+          <p className="text-center">
+            {hecho.deposited ? "Ya se depositó a su cuenta de banco." : "Ya puede usarlo con su gafete en un comercio aliado."}
+          </p>
           <div className="hoja p-5">
             <Presupuesto s={hecho.summary} />
             <p className="mt-3 text-sm">Saldo en tu wallet: {pesos(hecho.balance)}</p>
@@ -93,6 +95,9 @@ export default function Pagar() {
                   <span className="font-bold">Lo que necesita:</span> {persona.need}
                 </p>
               ) : null}
+              <p className="mt-3 text-sm text-humo">
+                {persona.payout === "clabe" ? "Tu donativo se deposita directo a su cuenta de banco." : "Tu donativo llega a su gafete; lo gasta en comercios aliados."}
+              </p>
             </div>
           </section>
 

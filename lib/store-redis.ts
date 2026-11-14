@@ -32,9 +32,9 @@ local amt = tonumber(ARGV[1])
 local bal = tonumber(redis.call('HGET', KEYS[1], 'balance'))
 if bal < amt then return 'funds' end
 local nb = redis.call('HINCRBY', KEYS[1], 'balance', -amt)
-redis.call('HINCRBY', KEYS[1], 'redeemed', amt)
+redis.call('HINCRBY', KEYS[1], ARGV[3], amt)
 redis.call('LPUSH', KEYS[2], ARGV[2])
-redis.call('HINCRBY', KEYS[3], 'redeemed', amt)
+redis.call('HINCRBY', KEYS[3], ARGV[3], amt)
 return 'ok:' .. nb
 `;
 
@@ -157,7 +157,9 @@ export class RedisStore implements Store {
     return {
       code: h.code, alias: h.alias, zone: h.zone ?? "", need: h.need ?? "", story: h.story ?? "",
       balance: Number(h.balance), received: Number(h.received), donations: Number(h.donations),
-      redeemed: Number(h.redeemed), createdAt: Number(h.createdAt), pinHash: h.pinHash,
+      redeemed: Number(h.redeemed), paidOut: Number(h.paidOut ?? 0), createdAt: Number(h.createdAt), pinHash: h.pinHash,
+      payout: h.payout as RecipientRecord["payout"], clabe: h.clabe, bank: h.bank, legalName: h.legalName,
+      curp: h.curp, account: h.account,
     };
   }
   async recipientTxs(code: string, limit = 100) {
@@ -172,9 +174,10 @@ export class RedisStore implements Store {
     );
     return move(result);
   }
-  async redeem(code: string, amount: number, tx: Tx) {
+  async redeem(code: string, amount: number, tx: Tx, kind: "redeem" | "payout" = "redeem") {
     const result = await this.cmd<string>(
-      "EVAL", REDEEM, 3, `${P}rec:${code}`, `${P}tx:rec:${code}`, `${P}stats`, amount, JSON.stringify(tx),
+      "EVAL", REDEEM, 3, `${P}rec:${code}`, `${P}tx:rec:${code}`, `${P}stats`,
+      amount, JSON.stringify(tx), kind === "payout" ? "paidOut" : "redeemed",
     );
     return move(result);
   }
@@ -196,7 +199,7 @@ export class RedisStore implements Store {
     const h = toObject(await this.cmd("HGETALL", `${P}stats`)) ?? {};
     return {
       donated: Number(h.donated ?? 0), donations: Number(h.donations ?? 0), redeemed: Number(h.redeemed ?? 0),
-      people: Number(h.people ?? 0), donors: Number(h.donors ?? 0),
+      paidOut: Number(h.paidOut ?? 0), people: Number(h.people ?? 0), donors: Number(h.donors ?? 0),
     };
   }
 }

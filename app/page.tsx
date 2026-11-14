@@ -9,7 +9,7 @@ import type { Stats } from "@/lib/types";
 const PASOS = [
   { t: "Fondea tu wallet", d: "Pones saldo una vez y decides cuánto quieres dar al mes." },
   { t: "Escanea el gafete", d: "Con la cámara de tu celular. Eliges el monto y listo: sin efectivo y sin pedirle datos a nadie." },
-  { t: "La persona lo gasta", d: "Paga comida o medicinas en un comercio aliado con su gafete y su NIP. No necesita celular ni cuenta de banco." },
+  { t: "La persona lo recibe", d: "Si ya tiene cuenta de banco, se le deposita ahí. Si no, le abrimos una cuenta básica y paga comida o medicinas con su gafete y su NIP." },
 ];
 
 export default function Inicio() {

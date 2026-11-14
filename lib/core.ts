@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt } from "node:crypto";
+import { CUENTA_PREFIJO } from "./cuenta";
 import { MemoryStore } from "./store-memory";
 import { RedisStore } from "./store-redis";
 import type { Recipient, RecipientRecord, Store, Tx } from "./types";
@@ -101,11 +102,26 @@ export function clean(value: unknown, max: number): string {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
-export function publicRecipient(r: RecipientRecord): Omit<Recipient, "balance" | "redeemed"> {
+export function publicRecipient(r: RecipientRecord): Omit<Recipient, "balance" | "redeemed" | "paidOut"> {
   return {
     code: r.code, alias: r.alias, zone: r.zone, need: r.need, story: r.story,
-    received: r.received, donations: r.donations, createdAt: r.createdAt,
+    received: r.received, donations: r.donations, createdAt: r.createdAt, payout: r.payout,
   };
+}
+
+/** Lo que ve la persona con su NIP: saldo y los datos de la cuenta donde recibe. */
+export function privateRecipient(r: RecipientRecord) {
+  return {
+    ...publicRecipient(r), balance: r.balance, redeemed: r.redeemed, paidOut: r.paidOut ?? 0,
+    legalName: r.legalName, curp: r.curp, account: r.account, bank: r.bank,
+    clabeEnd: r.clabe ? r.clabe.slice(-4) : undefined,
+  };
+}
+
+/** Número de la cuenta de demostración. No es una cuenta bancaria real. */
+export function newAccountNumber(): string {
+  const n = () => String(randomInt(10000)).padStart(4, "0");
+  return `${CUENTA_PREFIJO}-${n()}-${n()}`;
 }
 
 // ------------------------------------------------- presupuesto del donante
@@ -140,16 +156,19 @@ export function budgetSummary(txs: Tx[], budget: number, at = now()) {
 
 // ---------------------------------------------------------- datos de demo
 export const DEMO_PIN = "1234";
-export const DEMO_PEOPLE = [
+export const DEMO_PEOPLE: { code: string; alias: string; zone: string; need: string; story: string; payout?: "clabe" | "n2bis"; clabe?: string; bank?: string }[] = [
   { code: "LUPITA", alias: "Doña Lupita", zone: "Metro Insurgentes, salida Génova", need: "Comida caliente y sus medicinas", story: "Vende dulces afuera del metro desde hace seis años. Quiere juntar para rentar un cuarto." },
-  { code: "TOÑO22", alias: "Don Toño", zone: "Alameda Central", need: "Cena y un lugar donde bañarse", story: "Fue albañil hasta que se lastimó la espalda. Duerme cerca del Hemiciclo." },
+  { code: "TONO22", alias: "Don Toño", zone: "Alameda Central", need: "Cena y un lugar donde bañarse", story: "Fue albañil hasta que se lastimó la espalda. Duerme cerca del Hemiciclo." },
   { code: "MARCO7", alias: "Marco", zone: "Glorieta de los Insurgentes", need: "Pasaje y comida para llegar a entrevistas", story: "Tiene 24 años y llegó de Veracruz buscando trabajo." },
-].map((p) => ({ ...p, code: p.code.replace("Ñ", "N") }));
+  // Recibe en su propia cuenta de banco (CLABE de demostración)
+  { code: "CARMEN", alias: "Doña Carmen", zone: "Mercado de la Merced", need: "Surtir su puesto de flores", story: "Vende flores desde los quince años. Ya tiene cuenta de banco y ahí recibe.", payout: "clabe", clabe: "646180000000000012", bank: "STP" },
+];
 
 async function seed(store: Store) {
   for (const p of DEMO_PEOPLE) {
     await store.createRecipient({
-      ...p, balance: 0, received: 0, donations: 0, redeemed: 0, createdAt: now(), pinHash: hashPin(p.code, DEMO_PIN),
+      ...p, balance: 0, received: 0, donations: 0, redeemed: 0, paidOut: 0, createdAt: now(),
+      pinHash: hashPin(p.code, DEMO_PIN),
     });
   }
 }

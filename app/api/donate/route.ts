@@ -21,6 +21,16 @@ export async function POST(req: Request) {
     if (result.reason === "funds") return fail(402, "No te alcanza el saldo. Fondea tu wallet y vuelve a intentar.", { balance: donor.balance });
     return fail(404, "No pudimos completar el donativo.");
   }
+  // Si la persona recibe en su propia cuenta, el donativo se le deposita de inmediato (SPEI simulado).
+  let deposited = false;
+  if (person.payout === "clabe" && person.clabe) {
+    const payout = {
+      id: newId("t"), ts: now(), type: "payout" as const, amount, code, alias: person.alias,
+      merchant: `Depósito a ${person.bank ?? "su banco"} ••••${person.clabe.slice(-4)}`,
+    };
+    deposited = (await store.redeem(code, amount, payout, "payout")).ok;
+  }
+
   const txs = await store.donorTxs(donor.id, 300);
-  return ok({ tx, balance: result.balance, summary: budgetSummary(txs, donor.budget) });
+  return ok({ tx, balance: result.balance, summary: budgetSummary(txs, donor.budget), payout: person.payout ?? null, deposited });
 }

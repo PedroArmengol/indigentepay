@@ -5,6 +5,9 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Gafete, Pagina, useOrigin, type Persona } from "@/components/ui";
 import { api } from "@/lib/client";
+import { CUENTA_NIVEL } from "@/lib/cuenta";
+
+type Alta = { code: string; payout?: "clabe" | "n2bis"; curp?: string; account?: string; legalName?: string; bank?: string; clabeEnd?: string };
 
 export default function VerGafete() {
   const { code } = useParams<{ code: string }>();
@@ -12,9 +15,14 @@ export default function VerGafete() {
   const [persona, setPersona] = useState<Persona | null>(null);
   const [noExiste, setNoExiste] = useState(false);
   const [nuevo, setNuevo] = useState(false);
+  const [alta, setAlta] = useState<Alta | null>(null);
 
   useEffect(() => {
     setNuevo(new URLSearchParams(window.location.search).has("nuevo"));
+    try {
+      const guardada = JSON.parse(window.sessionStorage.getItem("indigentepay.alta") ?? "null") as Alta | null;
+      if (guardada?.code === code) setAlta(guardada);
+    } catch {}
     api<{ person: Persona }>(`/api/people/${code}`).then((r) => setPersona(r.person)).catch(() => setNoExiste(true));
   }, [code]);
 
@@ -36,6 +44,26 @@ export default function VerGafete() {
             Imprímelo y enmícalo. Quien lo escanee con la cámara de su celular puede darle dinero al instante.
           </p>
         </div>
+        {alta?.payout === "n2bis" ? (
+          <section className="no-imprimir hoja p-4">
+            <p className="font-bold">Cuenta {CUENTA_NIVEL} abierta</p>
+            <dl className="mt-2 grid gap-1 text-[0.9375rem]">
+              <div className="flex justify-between gap-3"><dt className="text-humo">A nombre de</dt><dd className="text-right font-bold">{alta.legalName}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-humo">CURP calculada</dt><dd className="font-bold tabular-nums">{alta.curp}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-humo">Cuenta</dt><dd className="font-bold tabular-nums">{alta.account}</dd></div>
+            </dl>
+            <p className="nota mt-3 leading-snug">
+              Cuenta de demostración. En producción la abre un banco y la CURP se confirma con RENAPO. Lo que reciba se
+              guarda aquí y lo gasta con su gafete y su NIP.
+            </p>
+          </section>
+        ) : null}
+        {alta?.payout === "clabe" ? (
+          <section className="no-imprimir hoja p-4">
+            <p className="font-bold">Recibe en su cuenta de {alta.bank} ••••{alta.clabeEnd}</p>
+            <p className="nota mt-2 leading-snug">Cada donativo se le deposita al momento. En esta demo el depósito es simulado.</p>
+          </section>
+        ) : null}
         <div className="flex justify-center py-2">
           {persona ? <Gafete persona={persona} origin={origin} qr={230} /> : <p className="nota">Cargando gafete…</p>}
         </div>

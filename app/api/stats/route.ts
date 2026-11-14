@@ -9,6 +9,6 @@ export async function GET() {
     storage: storageKind(),
     redisVars: redisVarNames(),
     funding: peyEnabled() ? "codi" : "simulado",
-    demo: { pin: DEMO_PIN, people: DEMO_PEOPLE.map(({ code, alias, zone, need }) => ({ code, alias, zone, need })) },
+    demo: { pin: DEMO_PIN, people: DEMO_PEOPLE.map(({ code, alias, zone, need, payout }) => ({ code, alias, zone, need, payout })) },
   });
 }

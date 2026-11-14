@@ -10,7 +10,7 @@ export class MemoryStore implements Store {
   private donorTx = new Map<string, Tx[]>();
   private recTx = new Map<string, Tx[]>();
   private fails = new Map<string, { n: number; until: number }>();
-  private totals = { donated: 0, donations: 0, redeemed: 0 };
+  private totals = { donated: 0, donations: 0, redeemed: 0, paidOut: 0 };
 
   async createDonor(d: Donor) {
     this.donors.set(d.id, { ...d });
@@ -80,13 +80,14 @@ export class MemoryStore implements Store {
     return { ok: true, balance: d.balance };
   }
 
-  async redeem(code: string, amount: number, tx: Tx): Promise<MoveResult> {
+  async redeem(code: string, amount: number, tx: Tx, kind: "redeem" | "payout" = "redeem"): Promise<MoveResult> {
     const r = this.recipients.get(code);
     if (!r) return { ok: false, reason: "recipient" };
     if (r.balance < amount) return { ok: false, reason: "funds" };
+    const field = kind === "payout" ? "paidOut" : "redeemed";
     r.balance -= amount;
-    r.redeemed += amount;
-    this.totals.redeemed += amount;
+    r[field] = (r[field] ?? 0) + amount;
+    this.totals[field] += amount;
     this.push(this.recTx, code, tx);
     return { ok: true, balance: r.balance };
   }

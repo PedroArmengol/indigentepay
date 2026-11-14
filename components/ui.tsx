@@ -53,7 +53,7 @@ export function QR({ value, size = 220 }: { value: string; size?: number }) {
   );
 }
 
-export type Persona = { code: string; alias: string; zone?: string; need?: string; story?: string };
+export type Persona = { code: string; alias: string; zone?: string; need?: string; story?: string; payout?: "clabe" | "n2bis" | null };
 
 /** El gafete: la cuenta de la persona, impresa. */
 export function Gafete({ persona, origin, qr = 200 }: { persona: Persona; origin: string; qr?: number }) {
