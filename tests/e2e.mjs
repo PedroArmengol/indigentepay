@@ -26,7 +26,7 @@ wallet = r.data.donor.id;
 r = await call("/api/donate", { code: "LUPITA", amount: 20 });
 assert.equal(r.status, 402, "sin saldo no se puede donar");
 
-r = await call("/api/fund", { amount: 5 });
+r = await call("/api/fund", { amount: 0.5 });
 assert.equal(r.status, 400);
 r = await call("/api/fund", { amount: 200 });
 assert.equal(r.status, 201);
@@ -46,7 +46,7 @@ assert.equal(r.status, 400, "menor de edad");
 r = await call("/api/people", { alias: "Chuy", zone: "Tacuba", need: "Tacos", story: "", pin: "4821", ...n2bis });
 assert.equal(r.status, 201);
 assert.equal(r.data.curp, "RAOJ790802HDFMRS04");
-assert.match(r.data.account, /^N1B-\d{4}-\d{4}$/);
+assert.match(r.data.account, /^N2B-\d{4}-\d{4}$/);
 const code = r.data.code;
 
 r = await call(`/api/people/${code.toLowerCase()}`);

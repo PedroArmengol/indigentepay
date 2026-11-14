@@ -57,7 +57,7 @@ export async function getStore(): Promise<Store> {
 
 // --------------------------------------------------------------- límites
 export const LIMITS = {
-  fundMin: 10_00,
+  fundMin: 1_00,
   fundMax: 5_000_00,
   walletMax: 20_000_00,
   donateMin: 1_00,

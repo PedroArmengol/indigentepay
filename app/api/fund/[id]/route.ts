@@ -1,16 +1,30 @@
 import { fail, ok, walletFrom } from "@/lib/api";
 import { getStore, newId, now } from "@/lib/core";
+import { findPayment } from "@/lib/pey";
 
 // Estado de un fondeo (la pantalla lo consulta mientras espera el pago)
 export async function GET(req: Request, ctx: RouteContext<"/api/fund/[id]">) {
   const donor = await walletFrom(req);
   const { id } = await ctx.params;
-  const fund = donor ? await (await getStore()).getFund(id) : null;
+  const store = await getStore();
+  let fund = donor ? await store.getFund(id) : null;
   if (!donor || !fund || fund.donorId !== donor.id) return fail(404, "No encontramos ese fondeo.");
+
+  // Respaldo del webhook: si sigue pendiente, se pregunta directo a Pey si ya llegó el pago.
+  if (fund.provider === "pey" && fund.status === "PENDING") {
+    try {
+      if (await findPayment(fund)) {
+        await store.confirmFund(id, { id: newId("t"), ts: now(), type: "fund", amount: fund.amount, concept: "Fondeo CoDi" });
+        fund = (await store.getFund(id)) ?? fund;
+      }
+    } catch (err) {
+      console.error("pey", err);
+    }
+  }
   return ok({ fund: { id: fund.id, amount: fund.amount, status: fund.status, provider: fund.provider } });
 }
 
-// Confirmar un fondeo SIMULADO. Los fondeos reales solo los confirma el webhook de Pey.
+// Confirmar un fondeo SIMULADO. Los fondeos reales solo se confirman con el pago visto en Pey.
 export async function POST(req: Request, ctx: RouteContext<"/api/fund/[id]">) {
   const donor = await walletFrom(req);
   const { id } = await ctx.params;

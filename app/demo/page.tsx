@@ -3,16 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Gafete, Pagina, useOrigin } from "@/components/ui";
-import { api } from "@/lib/client";
+import { api, pesos } from "@/lib/client";
 
 type Info = {
+  stats: { fundedReal: number; donated: number; redeemed: number; paidOut: number; people: number; donors: number };
   storage: "redis" | "memoria";
   funding: "codi" | "simulado";
   demo: { pin: string; people: { code: string; alias: string; zone: string; need: string; payout?: "clabe" | "n2bis" }[] };
 };
 
 const PASOS = [
-  { t: "Abre tu wallet y fondéala", d: "Pon tu nombre, elige tu presupuesto del mes y simula un pago de $200.", href: "/wallet", cta: "Abrir wallet" },
+  { t: "Abre tu wallet y fondéala", d: "Pon tu nombre, elige tu presupuesto del mes y fondea: con CoDi real si está activado, o con un pago simulado.", href: "/wallet", cta: "Abrir wallet" },
   { t: "Escanea un gafete y da", d: "Usa la cámara de tu celular sobre cualquiera de los gafetes de abajo.", href: "/escanear", cta: "Escanear" },
   { t: "Cobra como comercio aliado", d: "Escribe el código del gafete, un monto y el NIP de demostración.", href: "/canjear", cta: "Cobrar con gafete" },
   { t: "Registra a alguien nuevo", d: "Prueba las dos opciones: con cuenta de banco (CLABE) o sin cuenta, abriéndole una cuenta básica con su CURP calculada.", href: "/registrar", cta: "Registrar" },
@@ -63,6 +64,23 @@ export default function Demo() {
           </div>
         ))}
       </div>
+
+      {info ? (
+        <section className="hoja mt-10 p-4">
+          <h2 className="text-xl">Cuenta concentradora</h2>
+          <p className="mt-2 text-[0.9375rem] leading-snug">
+            {info.funding === "codi"
+              ? "Los pagos CoDi llegan a una sola cuenta bancaria. IndigentePay lleva el libro: cada wallet y cada gafete es una subcuenta."
+              : "Con CoDi activado, los pagos llegan a una sola cuenta bancaria y IndigentePay lleva el libro de subcuentas."}
+          </p>
+          <dl className="mt-3 grid gap-1 text-[0.9375rem]">
+            <div className="flex justify-between gap-3"><dt>Recibido por CoDi</dt><dd className="font-extrabold tabular-nums">{pesos(info.stats.fundedReal)}</dd></div>
+            <div className="flex justify-between gap-3"><dt>Subcuentas de donantes (wallets)</dt><dd className="font-extrabold tabular-nums">{info.stats.donors}</dd></div>
+            <div className="flex justify-between gap-3"><dt>Subcuentas de personas (gafetes)</dt><dd className="font-extrabold tabular-nums">{info.stats.people}</dd></div>
+            <div className="flex justify-between gap-3"><dt>Movido de wallets a gafetes</dt><dd className="font-extrabold tabular-nums">{pesos(info.stats.donated)}</dd></div>
+          </dl>
+        </section>
+      ) : null}
 
       {info ? (
         <p className="nota mt-10">

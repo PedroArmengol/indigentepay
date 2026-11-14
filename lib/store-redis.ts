@@ -45,8 +45,10 @@ if st ~= 'PENDING' then return 'already' end
 local donor = KEYS[2]
 if redis.call('EXISTS', donor) == 0 then return 'missing' end
 redis.call('HSET', KEYS[1], 'status', 'PAID')
-redis.call('HINCRBY', donor, 'balance', tonumber(redis.call('HGET', KEYS[1], 'amount')))
+local amt = tonumber(redis.call('HGET', KEYS[1], 'amount'))
+redis.call('HINCRBY', donor, 'balance', amt)
 redis.call('LPUSH', KEYS[3], ARGV[1])
+if redis.call('HGET', KEYS[1], 'provider') == 'pey' then redis.call('HINCRBY', KEYS[4], 'fundedReal', amt) end
 return 'ok'
 `;
 
@@ -129,7 +131,8 @@ export class RedisStore implements Store {
     if (!h) return null;
     return {
       id: h.id, donorId: h.donorId, amount: Number(h.amount), status: h.status as Fund["status"],
-      provider: h.provider as Fund["provider"], providerRef: h.providerRef, qrImage: h.qrImage,
+      provider: h.provider as Fund["provider"], method: h.method as Fund["method"], providerRef: h.providerRef,
+      qrImage: h.qrImage, qrString: h.qrString,
       createdAt: Number(h.createdAt),
     };
   }
@@ -141,8 +144,8 @@ export class RedisStore implements Store {
     const fund = await this.getFund(id);
     if (!fund) return "missing" as const;
     return this.cmd<"ok" | "already" | "missing">(
-      "EVAL", CONFIRM_FUND, 3,
-      `${P}fund:${id}`, `${P}donor:${fund.donorId}`, `${P}tx:donor:${fund.donorId}`,
+      "EVAL", CONFIRM_FUND, 4,
+      `${P}fund:${id}`, `${P}donor:${fund.donorId}`, `${P}tx:donor:${fund.donorId}`, `${P}stats`,
       JSON.stringify(tx),
     );
   }
@@ -199,7 +202,7 @@ export class RedisStore implements Store {
     const h = toObject(await this.cmd("HGETALL", `${P}stats`)) ?? {};
     return {
       donated: Number(h.donated ?? 0), donations: Number(h.donations ?? 0), redeemed: Number(h.redeemed ?? 0),
-      paidOut: Number(h.paidOut ?? 0), people: Number(h.people ?? 0), donors: Number(h.donors ?? 0),
+      paidOut: Number(h.paidOut ?? 0), fundedReal: Number(h.fundedReal ?? 0), people: Number(h.people ?? 0), donors: Number(h.donors ?? 0),
     };
   }
 }

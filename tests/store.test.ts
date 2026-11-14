@@ -41,7 +41,7 @@ function suite(name: string, make: () => Store) {
 
       assert.deepEqual((await s.donorTxs("d_1")).map((t) => t.type), ["donation", "fund"]);
       assert.deepEqual((await s.recipientTxs("AAA111")).map((t) => t.type), ["redeem", "donation"]);
-      assert.deepEqual(await s.stats(), { donated: 50_00, donations: 1, redeemed: 35_00, paidOut: 0, people: 1, donors: 1 });
+      assert.deepEqual(await s.stats(), { donated: 50_00, donations: 1, redeemed: 35_00, paidOut: 0, fundedReal: 0, people: 1, donors: 1 });
     });
 
     it("no permite doble gasto con donativos simultáneos", async () => {
@@ -62,13 +62,13 @@ function suite(name: string, make: () => Store) {
       await s.createFund({ id: "f_4", donorId: "d_4", amount: 100_00, status: "PENDING", provider: "sim", createdAt: 1 });
       await s.confirmFund("f_4", tx("fund", 100_00));
       await s.createRecipient({ code: "DDD444", alias: "Carmen", zone: "", need: "", story: "", balance: 0, received: 0, donations: 0, redeemed: 0, paidOut: 0, createdAt: 1, pinHash: "h", payout: "clabe", clabe: "646180000000000012", bank: "STP" });
-      await s.createRecipient({ code: "EEE555", alias: "Chuy", zone: "", need: "", story: "", balance: 0, received: 0, donations: 0, redeemed: 0, paidOut: 0, createdAt: 1, pinHash: "h", payout: "n2bis", curp: "GOMC850315HDFMNR07", legalName: "Carlos Gómez Mendoza", account: "N1B-0001-0002" });
+      await s.createRecipient({ code: "EEE555", alias: "Chuy", zone: "", need: "", story: "", balance: 0, received: 0, donations: 0, redeemed: 0, paidOut: 0, createdAt: 1, pinHash: "h", payout: "n2bis", curp: "GOMC850315HDFMNR07", legalName: "Carlos Gómez Mendoza", account: "N2B-0001-0002" });
       await s.donate("d_4", "DDD444", 40_00, tx("donation", 40_00));
       assert.deepEqual(await s.redeem("DDD444", 40_00, tx("payout", 40_00), "payout"), { ok: true, balance: 0 });
       const c = (await s.getRecipient("DDD444"))!;
       assert.deepEqual([c.payout, c.clabe, c.bank, c.balance, c.paidOut, c.redeemed], ["clabe", "646180000000000012", "STP", 0, 40_00, 0]);
       const n = (await s.getRecipient("EEE555"))!;
-      assert.deepEqual([n.payout, n.curp, n.legalName, n.account, n.clabe], ["n2bis", "GOMC850315HDFMNR07", "Carlos Gómez Mendoza", "N1B-0001-0002", undefined]);
+      assert.deepEqual([n.payout, n.curp, n.legalName, n.account, n.clabe], ["n2bis", "GOMC850315HDFMNR07", "Carlos Gómez Mendoza", "N2B-0001-0002", undefined]);
       assert.equal((await s.stats()).paidOut >= 40_00, true);
     });
 
@@ -89,6 +89,11 @@ function suite(name: string, make: () => Store) {
       assert.equal((await s.getDonor("d_3"))!.budget, 800_00);
       await s.createFund({ id: "f_3", donorId: "d_3", amount: 10_00, status: "PENDING", provider: "pey", providerRef: "QR9", qrImage: "abc", createdAt: 1 });
       assert.equal((await s.findFundByRef("QR9"))!.id, "f_3");
+      const antes = (await s.stats()).fundedReal;
+      assert.equal(await s.confirmFund("f_3", tx("fund", 10_00)), "ok");
+      assert.equal(await s.confirmFund("f_3", tx("fund", 10_00)), "already");
+      assert.equal((await s.stats()).fundedReal - antes, 10_00); // solo el fondeo real por CoDi cuenta para la concentradora
+      assert.equal((await s.getDonor("d_3"))!.balance, 10_00);
       assert.equal(await s.findFundByRef("nada"), null);
       assert.equal(await s.getDonor("nadie"), null);
       assert.equal(await s.getRecipient("NADIE"), null);

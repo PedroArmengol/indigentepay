@@ -3,15 +3,20 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ErrorMsg, Montos, Pagina, Sello } from "@/components/ui";
+import { ErrorMsg, Montos, Pagina, QR, Sello } from "@/components/ui";
 import { api, errorText, pesos, useWallet } from "@/lib/client";
 
-type Fund = { id: string; amount: number; status: "PENDING" | "PAID"; provider: "sim" | "pey"; qrImage?: string };
+type Fund = {
+  id: string; amount: number; status: "PENDING" | "PAID"; provider: "sim" | "pey";
+  method?: "qr" | "pn"; qrImage?: string; qrString?: string;
+};
 
 export default function Fondear() {
   const router = useRouter();
   const { status, data, reload } = useWallet();
   const [amount, setAmount] = useState("200");
+  const [phone, setPhone] = useState("");
+  const [codi, setCodi] = useState(false);
   const [fund, setFund] = useState<Fund | null>(null);
   const [paid, setPaid] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -21,12 +26,13 @@ export default function Fondear() {
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("volver");
     if (v && v.startsWith("/") && !v.startsWith("//")) setVolver(v);
+    api<{ funding: string }>("/api/stats").then((r) => setCodi(r.funding === "codi")).catch(() => {});
   }, []);
   useEffect(() => {
     if (status === "sin-wallet") router.replace("/wallet");
   }, [status, router]);
 
-  // Cobro CoDi real: esperamos el aviso del banco
+  // Cobro CoDi real: se consulta hasta que el banco confirma el pago
   useEffect(() => {
     if (!fund || fund.provider !== "pey" || paid) return;
     const timer = setInterval(async () => {
@@ -37,15 +43,15 @@ export default function Fondear() {
           void reload();
         }
       } catch {}
-    }, 2500);
+    }, 3000);
     return () => clearInterval(timer);
   }, [fund, paid, reload]);
 
-  async function crear() {
+  async function crear(method: "qr" | "pn") {
     setBusy(true);
     setError("");
     try {
-      const res = await api<{ fund: Fund }>("/api/fund", { body: { amount } });
+      const res = await api<{ fund: Fund }>("/api/fund", { body: { amount, method, phone } });
       setFund(res.fund);
     } catch (err) {
       setError(errorText(err));
@@ -69,6 +75,8 @@ export default function Fondear() {
     }
   }
 
+  const monto = Number(amount) ? pesos(Math.round(Number(amount) * 100)) : "";
+
   return (
     <Pagina>
       {paid && fund ? (
@@ -83,14 +91,31 @@ export default function Fondear() {
       ) : fund ? (
         <div className="grid gap-5 pt-4">
           <h1 className="text-4xl">Paga {pesos(fund.amount)}</h1>
-          {fund.provider === "pey" ? (
+          {fund.provider === "pey" && fund.method === "pn" ? (
             <>
-              <p>Escanea este QR CoDi desde la app de tu banco. El saldo se abona solo en cuanto llegue el pago.</p>
-              {fund.qrImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={`data:image/png;base64,${fund.qrImage}`} alt="QR CoDi para fondear" className="rotulo mx-auto w-64 p-3" />
-              ) : null}
-              <p className="nota text-center">Esperando el pago…</p>
+              <div className="hoja bg-aviso p-4">
+                <p className="font-bold">Te mandamos el cobro a tu celular</p>
+                <p className="mt-1 text-[0.9375rem] leading-snug">
+                  Abre la app de tu banco y acepta la solicitud de cobro CoDi. Tienes 6 minutos.
+                </p>
+              </div>
+              <p className="nota text-center">Esperando el pago de tu banco…</p>
+            </>
+          ) : fund.provider === "pey" ? (
+            <>
+              <p className="leading-snug">
+                En la app de tu banco entra a CoDi, elige pagar con QR y escanea este código. Tu saldo se abona solo en
+                cuanto llegue el pago.
+              </p>
+              <div className="rotulo mx-auto p-3">
+                {fund.qrImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`data:image/png;base64,${fund.qrImage}`} alt="QR CoDi para fondear" width={240} height={240} />
+                ) : fund.qrString ? (
+                  <QR value={fund.qrString} size={240} />
+                ) : null}
+              </div>
+              <p className="nota text-center">Esperando el pago de tu banco… El código vence en 6 minutos.</p>
             </>
           ) : (
             <>
@@ -108,7 +133,7 @@ export default function Fondear() {
           )}
           <ErrorMsg>{error}</ErrorMsg>
           <button className="font-bold underline underline-offset-4" onClick={() => setFund(null)}>
-            Cambiar el monto
+            Cambiar el monto o la forma de pago
           </button>
         </div>
       ) : (
@@ -119,9 +144,30 @@ export default function Fondear() {
           </div>
           <Montos value={amount} onChange={setAmount} opciones={[100, 200, 500, 1000]} />
           <ErrorMsg>{error}</ErrorMsg>
-          <button className="btn btn-rosa" onClick={crear} disabled={busy || !Number(amount)}>
-            {busy ? "Preparando…" : `Fondear ${Number(amount) ? pesos(Math.round(Number(amount) * 100)) : ""}`}
-          </button>
+          {codi ? (
+            <>
+              <button className="btn btn-rosa" onClick={() => crear("qr")} disabled={busy || !Number(amount)}>
+                {busy ? "Preparando…" : `Pagar ${monto} con QR CoDi`}
+              </button>
+              <div className="hoja grid gap-3 p-4">
+                <label>
+                  <span className="etiqueta">¿Estás en el celular? Recibe el cobro en la app de tu banco</span>
+                  <input
+                    className="campo tabular-nums" inputMode="numeric" maxLength={10} value={phone} placeholder="Tu celular a 10 dígitos"
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                  />
+                </label>
+                <button className="btn" onClick={() => crear("pn")} disabled={busy || !Number(amount) || phone.length !== 10}>
+                  Mandar cobro a mi celular
+                </button>
+              </div>
+              <p className="nota">Pago real con CoDi. El dinero llega a la cuenta concentradora de IndigentePay y se abona a tu wallet.</p>
+            </>
+          ) : (
+            <button className="btn btn-rosa" onClick={() => crear("qr")} disabled={busy || !Number(amount)}>
+              {busy ? "Preparando…" : `Fondear ${monto}`}
+            </button>
+          )}
         </div>
       )}
     </Pagina>

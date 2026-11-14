@@ -16,11 +16,13 @@ export default function Inicio() {
   const origin = useOrigin();
   const [stats, setStats] = useState<Stats | null>(null);
   const [storage, setStorage] = useState("");
+  const [funding, setFunding] = useState("");
   useEffect(() => {
-    api<{ stats: Stats; storage: string }>("/api/stats")
+    api<{ stats: Stats; storage: string; funding: string }>("/api/stats")
       .then((r) => {
         setStats(r.stats);
         setStorage(r.storage);
+        setFunding(r.funding);
       })
       .catch(() => {});
   }, []);
@@ -93,7 +95,10 @@ export default function Inicio() {
       ) : null}
 
       <p className="nota mt-10">
-        Proyecto del Cursor Hackathon México 2026. El fondeo de esta demo es simulado: no se mueve dinero real.
+        Proyecto del Cursor Hackathon México 2026.{" "}
+        {funding === "codi"
+          ? "El fondeo es real: se paga con CoDi y llega a una cuenta concentradora; cada wallet y cada gafete es una subcuenta."
+          : "El fondeo de esta demo es simulado: no se mueve dinero real."}
       </p>
     </Pagina>
   );

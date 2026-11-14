@@ -54,8 +54,10 @@ export type Fund = {
   amount: number;
   status: "PENDING" | "PAID";
   provider: "sim" | "pey";
-  providerRef?: string; // id del QR CoDi en Pey
+  method?: "qr" | "pn"; // QR CoDi o cobro a la app del banco (solo Pey)
+  providerRef?: string; // id del QR CoDi o id de la transacción del cobro en Pey
   qrImage?: string; // PNG en base64 (solo Pey)
+  qrString?: string; // contenido del QR, por si Pey no regresa la imagen
   createdAt: number;
 };
 
@@ -64,6 +66,7 @@ export type Stats = {
   donations: number;
   redeemed: number;
   paidOut: number;
+  fundedReal: number; // pesos reales recibidos por CoDi en la cuenta concentradora
   people: number;
   donors: number;
 };

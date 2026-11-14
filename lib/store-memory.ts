@@ -10,7 +10,7 @@ export class MemoryStore implements Store {
   private donorTx = new Map<string, Tx[]>();
   private recTx = new Map<string, Tx[]>();
   private fails = new Map<string, { n: number; until: number }>();
-  private totals = { donated: 0, donations: 0, redeemed: 0, paidOut: 0 };
+  private totals = { donated: 0, donations: 0, redeemed: 0, paidOut: 0, fundedReal: 0 };
 
   async createDonor(d: Donor) {
     this.donors.set(d.id, { ...d });
@@ -46,6 +46,7 @@ export class MemoryStore implements Store {
     if (!d) return "missing" as const;
     f.status = "PAID";
     d.balance += f.amount;
+    if (f.provider === "pey") this.totals.fundedReal += f.amount;
     this.push(this.donorTx, d.id, tx);
     return "ok" as const;
   }
