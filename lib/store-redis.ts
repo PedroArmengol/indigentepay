@@ -52,6 +52,24 @@ if redis.call('HGET', KEYS[1], 'provider') == 'pey' then redis.call('HINCRBY', K
 return 'ok'
 `;
 
+const CONFIRM_DIRECT = `
+local st = redis.call('HGET', KEYS[1], 'status')
+if not st then return 'missing' end
+if st ~= 'PENDING' then return 'already' end
+if redis.call('EXISTS', KEYS[2]) == 0 then return 'missing' end
+local amt = tonumber(redis.call('HGET', KEYS[1], 'amount'))
+redis.call('HSET', KEYS[1], 'status', 'PAID')
+redis.call('HINCRBY', KEYS[2], 'balance', amt)
+redis.call('HINCRBY', KEYS[2], 'received', amt)
+redis.call('HINCRBY', KEYS[2], 'donations', 1)
+redis.call('LPUSH', KEYS[3], ARGV[1])
+redis.call('HINCRBY', KEYS[4], 'donated', amt)
+redis.call('HINCRBY', KEYS[4], 'donations', 1)
+redis.call('HINCRBY', KEYS[4], 'fundedReal', amt)
+if ARGV[2] == '1' then redis.call('LPUSH', KEYS[5], ARGV[1]) end
+return 'ok'
+`;
+
 const CREATE_RECIPIENT = `
 if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
 redis.call('HSET', KEYS[1], unpack(ARGV))
@@ -130,7 +148,8 @@ export class RedisStore implements Store {
     const h = toObject(await this.cmd("HGETALL", `${P}fund:${id}`));
     if (!h) return null;
     return {
-      id: h.id, donorId: h.donorId, amount: Number(h.amount), status: h.status as Fund["status"],
+      id: h.id, donorId: h.donorId ?? "", target: h.target, donorName: h.donorName,
+      amount: Number(h.amount), status: h.status as Fund["status"],
       provider: h.provider as Fund["provider"], method: h.method as Fund["method"], providerRef: h.providerRef,
       qrImage: h.qrImage, qrString: h.qrString,
       createdAt: Number(h.createdAt),
@@ -142,11 +161,23 @@ export class RedisStore implements Store {
   }
   async confirmFund(id: string, tx: Tx) {
     const fund = await this.getFund(id);
-    if (!fund) return "missing" as const;
+    if (!fund || fund.target) return "missing" as const;
     return this.cmd<"ok" | "already" | "missing">(
       "EVAL", CONFIRM_FUND, 4,
       `${P}fund:${id}`, `${P}donor:${fund.donorId}`, `${P}tx:donor:${fund.donorId}`, `${P}stats`,
       JSON.stringify(tx),
+    );
+  }
+
+  async confirmDirect(id: string, tx: Tx) {
+    const fund = await this.getFund(id);
+    if (!fund || !fund.target) return "missing" as const;
+    const conWallet = fund.donorId ? await this.cmd<number>("EXISTS", `${P}donor:${fund.donorId}`) : 0;
+    return this.cmd<"ok" | "already" | "missing">(
+      "EVAL", CONFIRM_DIRECT, 5,
+      `${P}fund:${id}`, `${P}rec:${fund.target}`, `${P}tx:rec:${fund.target}`, `${P}stats`,
+      `${P}tx:donor:${fund.donorId || "ninguno"}`,
+      JSON.stringify(tx), conWallet ? "1" : "0",
     );
   }
 

@@ -4,16 +4,18 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CrearWallet } from "@/components/CrearWallet";
+import { PagoCodi } from "@/components/PagoCodi";
 import { ErrorMsg, Montos, Pagina, Presupuesto, Sello, type Persona } from "@/components/ui";
 import { ApiError, api, errorText, pesos, useWallet, type Summary } from "@/lib/client";
 
-type Hecho = { amount: number; balance: number; summary: Summary; deposited?: boolean };
+type Hecho = { amount: number; balance?: number; summary?: Summary | null; deposited?: boolean; directo?: boolean };
 
 export default function Pagar() {
   const { code } = useParams<{ code: string }>();
   const wallet = useWallet();
   const [persona, setPersona] = useState<Persona | null>(null);
   const [noExiste, setNoExiste] = useState(false);
+  const [codi, setCodi] = useState(false);
   const [amount, setAmount] = useState("20");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -21,6 +23,7 @@ export default function Pagar() {
 
   useEffect(() => {
     api<{ person: Persona }>(`/api/people/${code}`).then((r) => setPersona(r.person)).catch(() => setNoExiste(true));
+    api<{ funding: string }>("/api/stats").then((r) => setCodi(r.funding === "codi")).catch(() => {});
   }, [code]);
 
   const cents = Math.round((Number(amount) || 0) * 100);
@@ -62,18 +65,39 @@ export default function Pagar() {
             Le diste {pesos(hecho.amount)} a {persona.alias}
           </h1>
           <p className="text-center">
+            {hecho.directo ? `Tu pago CoDi llegó referenciado a su gafete ${persona.code}. ` : ""}
             {hecho.deposited ? "Ya se depositó a su cuenta de banco." : "Ya puede usarlo con su gafete en un comercio aliado."}
           </p>
-          <div className="hoja p-5">
-            <Presupuesto s={hecho.summary} />
-            <p className="mt-3 text-sm">Saldo en tu wallet: {pesos(hecho.balance)}</p>
-          </div>
-          <Link href="/wallet" className="btn btn-rosa">Ver mi wallet</Link>
+          {hecho.summary ? (
+            <div className="hoja p-5">
+              <Presupuesto s={hecho.summary} />
+              {hecho.balance !== undefined ? <p className="mt-3 text-sm">Saldo en tu wallet: {pesos(hecho.balance)}</p> : null}
+            </div>
+          ) : null}
+          <Link href="/wallet" className="btn btn-rosa">{hecho.summary ? "Ver mi wallet" : "Abrir mi wallet y llevar mi presupuesto"}</Link>
           <Link href="/escanear" className="btn">Escanear otro gafete</Link>
         </div>
       </Pagina>
     );
   }
+
+  const botonWallet = falta ? (
+    <div className="grid gap-3">
+      <p className="aviso-error">
+        Tienes {pesos(saldo)} en tu wallet. Te faltan {pesos(cents - saldo)} para este donativo.
+      </p>
+      <Link href={`/wallet/fondear?volver=/p/${code}`} className={codi ? "btn" : "btn btn-rosa"}>
+        Fondear mi wallet
+      </Link>
+    </div>
+  ) : (
+    <div>
+      <button className={codi ? "btn" : "btn btn-rosa"} onClick={dar} disabled={busy || cents <= 0 || wallet.status !== "lista"}>
+        {busy ? "Enviando…" : `Dar ${cents > 0 ? pesos(cents) : ""} ${codi ? "desde mi wallet" : `a ${persona?.alias ?? ""}`}`}
+      </button>
+      {wallet.data ? <p className="nota mt-3 text-center">Saldo en tu wallet: {pesos(saldo)}</p> : null}
+    </div>
+  );
 
   return (
     <Pagina>
@@ -101,7 +125,7 @@ export default function Pagar() {
             </div>
           </section>
 
-          {wallet.status === "sin-wallet" ? (
+          {!codi && wallet.status === "sin-wallet" ? (
             <CrearWallet onDone={wallet.reload} titulo="Abre tu wallet para dar" />
           ) : (
             <>
@@ -118,22 +142,23 @@ export default function Pagar() {
 
               <ErrorMsg>{error}</ErrorMsg>
 
-              {falta ? (
-                <div className="grid gap-3">
-                  <p className="aviso-error">
-                    Tienes {pesos(saldo)} en tu wallet. Te faltan {pesos(cents - saldo)} para este donativo.
-                  </p>
-                  <Link href={`/wallet/fondear?volver=/p/${code}`} className="btn btn-rosa">
-                    Fondear mi wallet
-                  </Link>
-                </div>
+              {codi ? (
+                <>
+                  <section className="grid gap-3">
+                    <h2 className="text-xl">Paga directo desde tu banco</h2>
+                    <PagoCodi code={persona.code} cents={cents} onPaid={(r) => setHecho({ ...r, directo: true })} />
+                  </section>
+                  <section className="grid gap-3">
+                    <h2 className="text-xl">O usa el saldo de tu wallet</h2>
+                    {wallet.status === "sin-wallet" ? (
+                      <Link href="/wallet" className="btn">Abrir mi wallet</Link>
+                    ) : (
+                      botonWallet
+                    )}
+                  </section>
+                </>
               ) : (
-                <div>
-                  <button className="btn btn-rosa" onClick={dar} disabled={busy || cents <= 0 || wallet.status !== "lista"}>
-                    {busy ? "Enviando…" : `Dar ${cents > 0 ? pesos(cents) : ""} a ${persona.alias}`}
-                  </button>
-                  {wallet.data ? <p className="nota mt-3 text-center">Saldo en tu wallet: {pesos(saldo)}</p> : null}
-                </div>
+                botonWallet
               )}
             </>
           )}

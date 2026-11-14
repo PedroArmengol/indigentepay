@@ -8,7 +8,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/fund/[id]">) {
   const { id } = await ctx.params;
   const store = await getStore();
   let fund = donor ? await store.getFund(id) : null;
-  if (!donor || !fund || fund.donorId !== donor.id) return fail(404, "No encontramos ese fondeo.");
+  if (!donor || !fund || fund.target || fund.donorId !== donor.id) return fail(404, "No encontramos ese fondeo.");
 
   // Respaldo del webhook: si sigue pendiente, se pregunta directo a Pey si ya llegó el pago.
   if (fund.provider === "pey" && fund.status === "PENDING") {
@@ -30,7 +30,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/fund/[id]">) {
   const { id } = await ctx.params;
   const store = await getStore();
   const fund = donor ? await store.getFund(id) : null;
-  if (!donor || !fund || fund.donorId !== donor.id) return fail(404, "No encontramos ese fondeo.");
+  if (!donor || !fund || fund.target || fund.donorId !== donor.id) return fail(404, "No encontramos ese fondeo.");
   if (fund.provider !== "sim") return fail(409, "Este fondeo se confirma cuando tu banco avisa del pago.");
   const result = await store.confirmFund(id, { id: newId("t"), ts: now(), type: "fund", amount: fund.amount, concept: "Fondeo simulado" });
   if (result === "missing") return fail(404, "No encontramos ese fondeo.");

@@ -72,6 +72,28 @@ function suite(name: string, make: () => Store) {
       assert.equal((await s.stats()).paidOut >= 40_00, true);
     });
 
+    it("abona un pago directo al gafete referenciado, una sola vez", async () => {
+      const s = make();
+      await s.createDonor({ id: "d_5", name: "Iván", balance: 0, budget: 1, createdAt: 1 });
+      await s.createRecipient({ code: "FFF666", alias: "Lupe", zone: "", need: "", story: "", balance: 0, received: 0, donations: 0, redeemed: 0, paidOut: 0, createdAt: 1, pinHash: "h" });
+      await s.createFund({ id: "f_5", donorId: "d_5", target: "FFF666", amount: 25_00, status: "PENDING", provider: "pey", method: "qr", providerRef: "QR5", createdAt: 1 });
+      await s.createFund({ id: "f_6", donorId: "", target: "FFF666", amount: 10_00, status: "PENDING", provider: "pey", method: "pn", providerRef: "TX6", createdAt: 1 });
+      const antes = await s.stats();
+      assert.equal(await s.confirmFund("f_5", tx("fund", 25_00)), "missing"); // un pago directo nunca se abona a una wallet
+      assert.equal(await s.confirmDirect("f_5", tx("donation", 25_00, { code: "FFF666" })), "ok");
+      assert.equal(await s.confirmDirect("f_5", tx("donation", 25_00)), "already");
+      assert.equal(await s.confirmDirect("f_6", tx("donation", 10_00, { code: "FFF666" })), "ok"); // sin wallet
+      assert.equal(await s.confirmDirect("f_x", tx("donation", 1)), "missing");
+      const r = (await s.getRecipient("FFF666"))!;
+      assert.deepEqual([r.balance, r.received, r.donations], [35_00, 35_00, 2]);
+      assert.equal((await s.getDonor("d_5"))!.balance, 0); // la wallet no se toca
+      assert.deepEqual((await s.donorTxs("d_5")).map((t) => t.type), ["donation"]); // pero cuenta para su presupuesto
+      assert.equal((await s.recipientTxs("FFF666")).length, 2);
+      const despues = await s.stats();
+      assert.deepEqual([despues.fundedReal - antes.fundedReal, despues.donated - antes.donated, despues.donations - antes.donations], [35_00, 35_00, 2]);
+      assert.equal((await s.getFund("f_5"))!.target, "FFF666");
+    });
+
     it("cuenta intentos de NIP y los reinicia", async () => {
       const s = make();
       assert.equal(await s.pinFails("CCC333"), 0);

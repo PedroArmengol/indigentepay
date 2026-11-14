@@ -37,20 +37,25 @@ async function request(method: string, path: string, json?: unknown): Promise<Js
   return data;
 }
 
-function common(amountCents: number, fundId: string, numRef: string): Json {
+/** A quién va el cobro. Con `recipient`, el pago queda referenciado al gafete de esa persona. */
+export type Destino = { concept?: string; recipient?: string };
+
+function common(amountCents: number, fundId: string, numRef: string, destino: Destino = {}): Json {
+  const metadata: Json = { orderId: fundId };
+  if (destino.recipient) metadata.recipient = destino.recipient;
   const body: Json = {
     amount: amountCents / 100,
-    concept: "IndigentePay fondeo",
+    concept: (destino.concept ?? "IndigentePay fondeo").slice(0, 40),
     numRef,
     expiration: EXPIRATION_SEC,
-    metadata: { orderId: fundId },
+    metadata,
   };
   if (process.env.PEY_BANK_ACCOUNT_ID) body.bankAccountId = process.env.PEY_BANK_ACCOUNT_ID;
   return body;
 }
 
-export async function createCodiQr(amountCents: number, fundId: string, numRef: string) {
-  const res = await request("POST", "/codi/qr", { ...common(amountCents, fundId, numRef), generateImage: true });
+export async function createCodiQr(amountCents: number, fundId: string, numRef: string, destino?: Destino) {
+  const res = await request("POST", "/codi/qr", { ...common(amountCents, fundId, numRef, destino), generateImage: true });
   return {
     id: String(res.id),
     qrImage: res.qrImage ? String(res.qrImage) : undefined,
@@ -59,8 +64,8 @@ export async function createCodiQr(amountCents: number, fundId: string, numRef: 
 }
 
 /** Manda la solicitud de cobro a la app del banco ligada a ese celular. */
-export async function createCodiPush(amountCents: number, fundId: string, numRef: string, phone10: string) {
-  const res = await request("POST", "/codi/pn", { ...common(amountCents, fundId, numRef), phoneNumber: phone10 });
+export async function createCodiPush(amountCents: number, fundId: string, numRef: string, phone10: string, destino?: Destino) {
+  const res = await request("POST", "/codi/pn", { ...common(amountCents, fundId, numRef, destino), phoneNumber: phone10 });
   return { transactionId: String(res.transactionId) };
 }
 

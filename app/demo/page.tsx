@@ -77,7 +77,7 @@ export default function Demo() {
             <div className="flex justify-between gap-3"><dt>Recibido por CoDi</dt><dd className="font-extrabold tabular-nums">{pesos(info.stats.fundedReal)}</dd></div>
             <div className="flex justify-between gap-3"><dt>Subcuentas de donantes (wallets)</dt><dd className="font-extrabold tabular-nums">{info.stats.donors}</dd></div>
             <div className="flex justify-between gap-3"><dt>Subcuentas de personas (gafetes)</dt><dd className="font-extrabold tabular-nums">{info.stats.people}</dd></div>
-            <div className="flex justify-between gap-3"><dt>Movido de wallets a gafetes</dt><dd className="font-extrabold tabular-nums">{pesos(info.stats.donated)}</dd></div>
+            <div className="flex justify-between gap-3"><dt>Entregado a gafetes</dt><dd className="font-extrabold tabular-nums">{pesos(info.stats.donated)}</dd></div>
           </dl>
         </section>
       ) : null}

@@ -50,7 +50,9 @@ export type Tx = {
 
 export type Fund = {
   id: string;
-  donorId: string;
+  donorId: string; // wallet que paga; vacío si es un pago directo sin wallet
+  target?: string; // pago directo: código del gafete que recibe
+  donorName?: string;
   amount: number;
   status: "PENDING" | "PAID";
   provider: "sim" | "pey";
@@ -86,6 +88,8 @@ export interface Store {
   findFundByRef(ref: string): Promise<Fund | null>;
   /** PENDING → PAID y abona a la wallet, una sola vez. */
   confirmFund(id: string, tx: Tx): Promise<"ok" | "already" | "missing">;
+  /** Pago directo: PENDING → PAID y abona al gafete del receptor referenciado, una sola vez. */
+  confirmDirect(id: string, tx: Tx): Promise<"ok" | "already" | "missing">;
 
   /** Regresa false si el código ya existe. */
   createRecipient(r: RecipientRecord): Promise<boolean>;

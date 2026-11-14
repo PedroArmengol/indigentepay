@@ -52,4 +52,34 @@ assert.deepEqual(await (await hook(`v1,${sig}`)).json(), { result: "ok" });
 assert.deepEqual(await (await hook(`v1,${sig}`)).json(), { result: "already" });
 assert.equal((await call("/api/wallet")).data.donor.balance, 2100);
 assert.equal((await call("/api/stats")).data.stats.fundedReal - antes, 2100, "la concentradora suma solo lo recibido por CoDi");
-console.log("OK: fondeo CoDi (QR, celular y webhook)");
+// ---- Pago directo a un receptor: el cobro va referenciado a su gafete
+const saldoDe = async (code) => (await call(`/api/people/${code}`, { pin: "1234" })).data.person;
+const lupita0 = await saldoDe("LUPITA");
+r = await call("/api/pay", { code: "NOEXISTE", amount: 15, method: "qr" });
+assert.equal(r.status, 404);
+r = await call("/api/pay", { code: "lupita", amount: 15, method: "qr" });
+assert.deepEqual([r.status, r.data.pay.code, r.data.pay.method], [201, "LUPITA", "qr"]);
+const p1 = r.data.pay.id;
+assert.equal((await call(`/api/fund/${p1}`)).status, 404, "un pago directo no es un fondeo de wallet");
+assert.equal((await call(`/api/pay/${p1}`)).data.pay.status, "PENDING");
+await mock(`/_pay/${(await mock("/_last")).qr}`, {});
+r = await call(`/api/pay/${p1}`);
+assert.deepEqual([r.data.pay.status, r.data.pay.alias, r.data.pay.deposited], ["PAID", "Doña Lupita", false]);
+assert.equal(r.data.pay.summary.spent, 1500, "cuenta para el presupuesto de quien paga");
+await call(`/api/pay/${p1}`);
+const lupita1 = await saldoDe("LUPITA");
+assert.equal(lupita1.balance - lupita0.balance, 1500, "se abona al gafete una sola vez");
+assert.equal((await call("/api/wallet")).data.donor.balance, 2100, "la wallet no se toca");
+
+// Sin wallet y por cobro al celular, a una persona que recibe en su banco
+wallet = "";
+const carmen0 = await saldoDe("CARMEN");
+r = await call("/api/pay", { code: "CARMEN", amount: 30, method: "pn", phone: "5512345678" });
+assert.equal(r.status, 201);
+await mock(`/_pay/${(await mock("/_last")).tx}`, {});
+r = await call(`/api/pay/${r.data.pay.id}`);
+assert.deepEqual([r.data.pay.status, r.data.pay.deposited, r.data.pay.summary], ["PAID", true, null]);
+const carmen1 = await saldoDe("CARMEN");
+assert.deepEqual([carmen1.balance, carmen1.paidOut - carmen0.paidOut], [0, 3000]);
+assert.equal((await call("/api/stats")).data.stats.fundedReal - antes, 2100 + 1500 + 3000);
+console.log("OK: fondeo CoDi (QR, celular y webhook) y pago directo referenciado al receptor");

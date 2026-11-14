@@ -52,6 +52,7 @@ Sin Redis la app funciona, pero los saldos viven en la memoria de cada instancia
 - **Wallet sin registro.** La llave de la wallet se genera en el servidor y vive en el `localStorage` del celular.
 - **Gafete con NIP.** El NIP se guarda con hash y sal; cinco intentos fallidos bloquean el gafete diez minutos. El perfil público nunca muestra el saldo.
 - **CURP calculada.** `lib/curp.ts` deriva 16 de los 18 caracteres y el dígito verificador. El carácter 17 lo asigna RENAPO para evitar duplicados; se usa el valor más común y la clave se marca como «calculada», por confirmar.
+- **Pago directo al receptor.** Con CoDi activado, quien escanea un gafete puede pagar directo desde su banco, sin wallet. El cobro lleva el código del gafete en sus metadatos y en el concepto, así que al confirmarse se abona a la subcuenta de esa persona. Si quien paga tiene wallet, el donativo también cuenta para su presupuesto del mes.
 - **Fondeo y cuenta concentradora.** Simulado por omisión. Con `PEY_API_KEY` el fondeo es un cobro CoDi real vía [Pey](https://docs.pey.mx): QR para escanear desde la app del banco, o solicitud de cobro al celular. El dinero llega a una sola cuenta bancaria (la concentradora) e IndigentePay lleva el libro de subcuentas: cada wallet y cada gafete es una subcuenta. El pago se confirma consultando la transacción en Pey (y también por webhook firmado, si se configura); un aviso repetido no abona dos veces.
 
 ```

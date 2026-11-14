@@ -40,7 +40,7 @@ export class MemoryStore implements Store {
   }
   async confirmFund(id: string, tx: Tx) {
     const f = this.funds.get(id);
-    if (!f) return "missing" as const;
+    if (!f || f.target) return "missing" as const;
     if (f.status !== "PENDING") return "already" as const;
     const d = this.donors.get(f.donorId);
     if (!d) return "missing" as const;
@@ -48,6 +48,24 @@ export class MemoryStore implements Store {
     d.balance += f.amount;
     if (f.provider === "pey") this.totals.fundedReal += f.amount;
     this.push(this.donorTx, d.id, tx);
+    return "ok" as const;
+  }
+
+  async confirmDirect(id: string, tx: Tx) {
+    const f = this.funds.get(id);
+    if (!f || !f.target) return "missing" as const;
+    if (f.status !== "PENDING") return "already" as const;
+    const r = this.recipients.get(f.target);
+    if (!r) return "missing" as const;
+    f.status = "PAID";
+    r.balance += f.amount;
+    r.received += f.amount;
+    r.donations += 1;
+    this.totals.donated += f.amount;
+    this.totals.donations += 1;
+    this.totals.fundedReal += f.amount;
+    this.push(this.recTx, r.code, tx);
+    if (f.donorId && this.donors.has(f.donorId)) this.push(this.donorTx, f.donorId, tx);
     return "ok" as const;
   }
 
