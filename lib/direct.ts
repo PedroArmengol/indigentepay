@@ -98,7 +98,12 @@ export async function syncStaticPayments(): Promise<number> {
     let credited = 0;
     for (const tx of txs.reverse()) {
       const id = String(tx.id ?? "");
-      const code = map[String(tx.payableId ?? "")];
+      // El pago se liga al gafete por el id de su QR fijo o, si Pey no lo trae, por el receptor en los metadatos.
+      // Los cobros con orderId son fondeos o pagos directos: esos se confirman por su propia ruta.
+      const meta = (tx.metadata ?? {}) as Record<string, unknown>;
+      const ext = (meta.externalMetadata ?? meta) as Record<string, unknown>;
+      const porMetadatos = !ext.orderId && ext.recipient ? String(ext.recipient) : undefined;
+      const code = map[String(tx.payableId ?? "")] ?? porMetadatos;
       if (!id || !code || tx.status !== "PAID" || seen.has(id)) continue;
       if ((await creditStatic(code, paidCents(tx), id)) === "ok") credited += 1;
     }
