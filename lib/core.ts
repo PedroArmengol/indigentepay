@@ -7,10 +7,32 @@ import type { Recipient, RecipientRecord, Store, Tx } from "./types";
 type Globals = { __ipStore?: Store; __ipSeed?: Promise<void> };
 const g = globalThis as unknown as Globals;
 
+const REDIS_PAIRS: [RegExp, string][] = [
+  [/REST_API_URL$/, "REST_API_TOKEN"], // KV_REST_API_URL (y con prefijo: MIAPP_KV_REST_API_URL)
+  [/REDIS_REST_URL$/, "REDIS_REST_TOKEN"], // UPSTASH_REDIS_REST_URL
+];
+
+/**
+ * Busca las credenciales REST de Upstash. Vercel deja poner un prefijo propio al
+ * conectar la base, así que se acepta cualquier nombre con estas terminaciones.
+ */
 export function redisEnv(): { url: string; token: string } | null {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  return url && token ? { url, token } : null;
+  const env = process.env;
+  const keys = Object.keys(env).sort((a, b) => a.length - b.length);
+  for (const [urlEnd, tokenEnd] of REDIS_PAIRS) {
+    for (const key of keys) {
+      if (!urlEnd.test(key)) continue;
+      const url = env[key];
+      const token = env[key.replace(urlEnd, tokenEnd)];
+      if (url && token) return { url, token };
+    }
+  }
+  return null;
+}
+
+/** Nombres (nunca valores) de las variables de Redis presentes: sirve para diagnosticar el despliegue. */
+export function redisVarNames(): string[] {
+  return Object.keys(process.env).filter((k) => /KV_|REDIS|UPSTASH/i.test(k)).sort();
 }
 
 export function storageKind(): "redis" | "memoria" {
